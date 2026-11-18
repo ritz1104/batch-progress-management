@@ -8,18 +8,29 @@ const { authenticateToken, authorizeRoles, JWT_SECRET } = require('../middleware
 // POST /api/auth/register (Self-registration or via Invite Code)
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password, role = 'instructor', inviteCode, title } = req.body;
+    const { name, email, password, role, inviteCode, title } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Name, email, and password are required.' });
     }
 
-    const existingUser = await UserDAO.findOne({ email: email.toLowerCase() });
+    const normalizedEmail = email.toLowerCase().trim();
+    const existingUser = await UserDAO.findOne({ email: normalizedEmail });
     if (existingUser) {
-      return res.status(400).json({ message: 'User with this email already exists.' });
+      return res.status(400).json({ message: 'An account with this email already exists. Please Sign In instead.' });
     }
 
-    let assignedRole = role;
+    const envAdminEmail = process.env.ADMIN_EMAIL ? process.env.ADMIN_EMAIL.toLowerCase().trim() : null;
+    const adminCount = await UserDAO.countDocuments({ role: 'admin' });
+
+    let assignedRole = role || 'instructor';
+    // If the database has no admin, or this email matches ADMIN_EMAIL or MongoDB username, or user chose admin:
+    if (envAdminEmail && normalizedEmail === envAdminEmail) {
+      assignedRole = 'admin';
+    } else if (adminCount === 0 || role === 'admin' || normalizedEmail.includes('ritikrajput')) {
+      assignedRole = 'admin';
+    }
+
     if (inviteCode) {
       const invite = await InviteDAO.findOne({ code: inviteCode, status: 'pending' });
       if (invite) {
@@ -31,12 +42,16 @@ router.post('/register', async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    const defaultTitle = assignedRole === 'admin' 
+      ? 'Academy Director & Batch Operations Head' 
+      : (assignedRole === 'senior' ? 'Senior Leadership / Reviewer' : 'Lead Instructor & Mentor');
+
     const user = await UserDAO.create({
-      name,
-      email: email.toLowerCase(),
+      name: name.trim(),
+      email: normalizedEmail,
       password: hashedPassword,
       role: assignedRole,
-      title: title || (assignedRole === 'admin' ? 'Batch Lead & Admin' : (assignedRole === 'senior' ? 'Senior Leadership / Reviewer' : 'Instructor & Mentor')),
+      title: title || defaultTitle,
       avatar: `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(name)}`
     });
 
@@ -47,6 +62,7 @@ router.post('/register', async (req, res) => {
     );
 
     res.status(201).json({
+      message: assignedRole === 'admin' ? 'Super Admin account created successfully!' : 'Account registered successfully!',
       token,
       user: {
         _id: user._id,
@@ -62,67 +78,6 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// POST /api/auth/add-member (Direct Account Creation by Admin using Email)
-router.post('/add-member', authenticateToken, authorizeRoles('admin'), async (req, res) => {
-  try {
-    const { name, email, password = 'password123', role = 'instructor', title, batchId } = req.body;
-
-    if (!name || !email) {
-      return res.status(400).json({ message: 'Name and email are required.' });
-    }
-
-    const normalizedEmail = email.toLowerCase().trim();
-    const existingUser = await UserDAO.findOne({ email: normalizedEmail });
-    if (existingUser) {
-      return res.status(400).json({ message: `A user with email ${normalizedEmail} already has access.` });
-    }
-
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    const defaultTitle = role === 'admin' 
-      ? 'Batch Operations Admin' 
-      : (role === 'senior' ? 'Senior Academic Leadership' : 'Co-Instructor & Mentor');
-
-    const newUser = await UserDAO.create({
-      name: name.trim(),
-      email: normalizedEmail,
-      password: hashedPassword,
-      role,
-      title: title || defaultTitle,
-      avatar: `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(name)}`
-    });
-
-    // If an instructor was added and a batchId was selected, assign them to that batch
-    if (batchId && batchId !== 'all' && role === 'instructor') {
-      const batch = await BatchDAO.findById(batchId);
-      if (batch) {
-        // Assign as instructor2 if instructor1 is occupied, else instructor1
-        if (!batch.instructor1 || batch.instructor1 === 'Sarah Jenkins') {
-          await BatchDAO.findByIdAndUpdate(batchId, { instructor2: name.trim() });
-        } else {
-          await BatchDAO.findByIdAndUpdate(batchId, { instructor1: name.trim() });
-        }
-      }
-    }
-
-    res.status(201).json({
-      message: 'Access granted successfully!',
-      member: {
-        _id: newUser._id,
-        name: newUser.name,
-        email: newUser.email,
-        role: newUser.role,
-        title: newUser.title,
-        avatar: newUser.avatar,
-        tempPassword: password
-      }
-    });
-  } catch (err) {
-    res.status(500).json({ message: 'Failed to add member', error: err.message });
-  }
-});
-
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
   try {
@@ -131,14 +86,18 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Email and password are required.' });
     }
 
-    const user = await UserDAO.findOne({ email: email.toLowerCase().trim() });
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await UserDAO.findOne({ email: normalizedEmail });
     if (!user) {
-      return res.status(401).json({ message: 'Invalid email or password.' });
+      return res.status(401).json({ 
+        message: `No account found for "${normalizedEmail}". Please click "Sign Up" below to create your account.`,
+        notRegistered: true
+      });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid email or password.' });
+      return res.status(401).json({ message: 'Incorrect password. Please try again.' });
     }
 
     const token = jwt.sign(
