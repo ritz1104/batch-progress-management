@@ -7,6 +7,7 @@ const UserSchema = new mongoose.Schema({
   role: { type: String, enum: ['admin', 'instructor', 'senior'], default: 'instructor' },
   avatar: { type: String, default: '' },
   title: { type: String, default: 'Team Member' },
+  assignedBatches: [{ type: String }], // Array of batch IDs or codes this user can access
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -19,6 +20,8 @@ const BatchSchema = new mongoose.Schema({
   instructor1: { type: String, default: 'Sarah Jenkins' }, // Primary Instructor
   instructor2: { type: String, default: 'Alex Morgan' },   // Co-Instructor
   instructors: [{ type: String }],
+  assignedEmails: [{ type: String }], // Array of teammate emails who have access to this batch
+  isAllAccess: { type: Boolean, default: false }, // If true, all teammates can see it
   description: { type: String, default: '' },
   color: { type: String, default: '#0B6E99' },
   status: { type: String, enum: ['active', 'completed', 'upcoming'], default: 'active' },

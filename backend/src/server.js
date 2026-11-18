@@ -12,6 +12,7 @@ const progressRoutes = require('./routes/progressRoutes');
 const attendanceRoutes = require('./routes/attendanceRoutes');
 const eventRoutes = require('./routes/eventRoutes');
 const reportRoutes = require('./routes/reportRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -53,6 +54,7 @@ app.use('/api/progress', progressRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Production Static Frontend Hosting (Single-Server Deployment)
 const frontendDist = path.join(__dirname, '../../frontend/dist');

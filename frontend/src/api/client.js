@@ -2,7 +2,6 @@ const BASE_URL = '/api';
 
 export async function apiFetch(endpoint, options = {}) {
   const token = localStorage.getItem('token');
-  const demoRole = localStorage.getItem('demoRole');
 
   const headers = {
     'Content-Type': 'application/json',
@@ -11,10 +10,8 @@ export async function apiFetch(endpoint, options = {}) {
 
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
-  } else if (demoRole) {
-    headers['x-demo-role'] = demoRole;
-    headers['x-demo-email'] = localStorage.getItem('demoEmail') || `${demoRole}@academy.dev`;
   }
+  // No demo role headers. Unauthenticated requests go without auth.
 
   const response = await fetch(`${BASE_URL}${endpoint}`, {
     ...options,
@@ -27,7 +24,10 @@ export async function apiFetch(endpoint, options = {}) {
 
   if (!response.ok) {
     const errorMsg = data && data.message ? data.message : `API Error: ${response.status} ${response.statusText}`;
-    throw new Error(errorMsg);
+    const err = new Error(errorMsg);
+    err.status = response.status;
+    err.data = data;
+    throw err;
   }
 
   return data;
@@ -44,6 +44,13 @@ export const authApi = {
   createInvite: (payload) => apiFetch('/auth/invite', { method: 'POST', body: JSON.stringify(payload) }),
   getInvites: () => apiFetch('/auth/invites'),
   verifyInvite: (code) => apiFetch(`/auth/verify-invite/${code}`),
+};
+
+export const adminApi = {
+  seed: (payload) => apiFetch('/admin/seed', { method: 'POST', body: JSON.stringify(payload || {}) }),
+  assignBatch: (payload) => apiFetch('/admin/assign-batch', { method: 'POST', body: JSON.stringify(payload) }),
+  updateUserRole: (id, role) => apiFetch(`/admin/users/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
+  systemStatus: () => apiFetch('/admin/system-status'),
 };
 
 export const batchApi = {

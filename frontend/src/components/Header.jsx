@@ -6,9 +6,10 @@ import {
   FileDown, 
   Layers,
   Shield,
-  Eye,
   Plus,
-  Users
+  Users,
+  LogIn,
+  LogOut
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -20,9 +21,10 @@ export default function Header({
   setSelectedBatchId,
   currentTab,
   onOpenReportModal,
-  onOpenDailyLogModal
+  onOpenDailyLogModal,
+  onOpenLoginModal
 }) {
-  const { user, selectDemoRole, canEdit, isAdmin, isSenior } = useAuth();
+  const { user, canEdit, isAdmin, isAuthenticated, logout } = useAuth();
 
   const handlePrevMonth = () => {
     const [y, m] = currentMonth.split('-').map(Number);
@@ -98,82 +100,56 @@ export default function Header({
           )}
         </div>
 
-        {/* Right: Batch Filter, Role Switcher & Action Buttons */}
+        {/* Right: Batch Filter, User info & Action Buttons */}
         <div className="flex items-center flex-wrap gap-2">
-          {/* Batch Selector */}
-          <div className="flex items-center gap-1.5 bg-notion-sidebar border border-notion-border rounded-md px-2 py-1 text-xs">
-            <Layers className="w-3.5 h-3.5 text-notion-muted" />
-            <select
-              value={selectedBatchId}
-              onChange={(e) => setSelectedBatchId(e.target.value)}
-              className="bg-transparent font-medium text-notion-text focus:outline-none cursor-pointer text-xs"
-            >
-              {batches.map(b => (
-                <option key={b._id} value={b._id}>
-                  {b.code} - {b.name.substring(0, 24)}...
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Batch Selector (only if authenticated and have batches) */}
+          {isAuthenticated && batches.length > 0 && (
+            <div className="flex items-center gap-1.5 bg-notion-sidebar border border-notion-border rounded-md px-2 py-1 text-xs">
+              <Layers className="w-3.5 h-3.5 text-notion-muted" />
+              <select
+                value={selectedBatchId}
+                onChange={(e) => setSelectedBatchId(e.target.value)}
+                className="bg-transparent font-medium text-notion-text focus:outline-none cursor-pointer text-xs"
+              >
+                {batches.map(b => (
+                  <option key={b._id} value={b._id}>
+                    {b.code} - {b.name.substring(0, 24)}...
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
-          {/* Role Switcher */}
-          <div className="flex items-center bg-stone-100 rounded-md p-0.5 border border-notion-border text-xs">
-            <span className="text-[10px] uppercase font-semibold text-stone-500 px-1.5 hidden lg:inline">
-              Simulate:
-            </span>
-            <button
-              onClick={() => selectDemoRole('admin')}
-              className={`px-2 py-1 rounded text-xs transition-colors flex items-center gap-1 ${
-                user?.role === 'admin'
-                  ? 'bg-stone-900 font-semibold text-white shadow-sm'
-                  : 'text-stone-600 hover:text-stone-900'
-              }`}
-              title="Super Admin (Only role with Admin Panel)"
-            >
-              <Shield className="w-3 h-3 text-amber-400" />
-              <span>👑 Super Admin</span>
-            </button>
-
-            <button
-              onClick={() => selectDemoRole('instructor')}
-              className={`px-2 py-1 rounded text-xs transition-colors flex items-center gap-1 ${
-                user?.role === 'instructor' && user.name.includes('Sarah')
-                  ? 'bg-white font-medium text-stone-900 shadow-sm border border-stone-200'
-                  : 'text-stone-600 hover:text-stone-900'
-              }`}
-              title="Instructor 1 (Can add to calendar & log attendance)"
-            >
-              <span>👩‍🏫 Instructor 1</span>
-            </button>
-
-            <button
-              onClick={() => selectDemoRole('instructor2')}
-              className={`px-2 py-1 rounded text-xs transition-colors flex items-center gap-1 ${
-                user?.role === 'instructor' && user.name.includes('Alex')
-                  ? 'bg-white font-medium text-stone-900 shadow-sm border border-stone-200'
-                  : 'text-stone-600 hover:text-stone-900'
-              }`}
-              title="Instructor 2 (Can add to calendar & log attendance)"
-            >
-              <span>👨‍🏫 Instructor 2</span>
-            </button>
-
-            <button
-              onClick={() => selectDemoRole('senior')}
-              className={`px-2 py-1 rounded text-xs transition-colors flex items-center gap-1 ${
-                user?.role === 'senior'
-                  ? 'bg-white font-medium text-stone-900 shadow-sm border border-stone-200'
-                  : 'text-stone-600 hover:text-stone-900'
-              }`}
-              title="Senior Leadership (Read-only viewer & PDF generator)"
-            >
-              <Eye className="w-3 h-3 text-purple-600" />
-              <span>Senior</span>
-            </button>
-          </div>
+          {/* Authenticated User Role Badge */}
+          {isAuthenticated && user && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-stone-100 border border-stone-200 text-xs">
+              <img
+                src={user.avatar || `https://api.dicebear.com/7.x/notionists/svg?seed=${user.name}`}
+                alt={user.name}
+                className="w-5 h-5 rounded-full bg-stone-200"
+              />
+              <span className="font-medium text-stone-800 max-w-[100px] truncate">{user.name}</span>
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                user.role === 'admin'
+                  ? 'bg-amber-100 text-amber-800'
+                  : user.role === 'senior'
+                  ? 'bg-purple-100 text-purple-800'
+                  : 'bg-blue-100 text-blue-800'
+              }`}>
+                {user.role === 'admin' ? '👑 Admin' : user.role === 'senior' ? '👓 Senior' : '👩‍🏫 Instructor'}
+              </span>
+              <button
+                onClick={logout}
+                className="p-1 hover:bg-stone-200 rounded text-stone-500 hover:text-stone-700 transition-colors"
+                title="Sign Out"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
 
           {/* Quick Action: Log Progress / Attendance */}
-          {canEdit && onOpenDailyLogModal && (
+          {isAuthenticated && canEdit && onOpenDailyLogModal && (
             <button
               onClick={() => onOpenDailyLogModal(new Date().toISOString().substring(0, 10))}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-stone-800 text-white text-xs font-medium hover:bg-stone-900 transition-colors shadow-sm"
@@ -184,14 +160,16 @@ export default function Header({
           )}
 
           {/* Monthly PDF Report Button */}
-          <button
-            onClick={onOpenReportModal}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 text-xs font-medium transition-colors shadow-sm"
-            title="Generate and Download Monthly PDF Report"
-          >
-            <FileDown className="w-3.5 h-3.5" />
-            <span>Monthly PDF Report</span>
-          </button>
+          {isAuthenticated && (
+            <button
+              onClick={onOpenReportModal}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 text-xs font-medium transition-colors shadow-sm"
+              title="Generate and Download Monthly PDF Report"
+            >
+              <FileDown className="w-3.5 h-3.5" />
+              <span>Monthly PDF Report</span>
+            </button>
+          )}
         </div>
       </div>
     </header>

@@ -3,14 +3,30 @@ const router = express.Router();
 const { BatchDAO, DailyProgressDAO, AttendanceDAO } = require('../models/dao');
 const { authenticateToken, authorizeRoles } = require('../middleware/auth');
 
-// GET /api/batches
+// GET /api/batches (Filtered by user permission)
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const batches = await BatchDAO.find();
+    let batches = await BatchDAO.find();
+
+    // If not super admin, filter to only batches assigned to this user
+    if (req.user.role !== 'admin') {
+      const userEmail = (req.user.email || '').toLowerCase().trim();
+      const userName = (req.user.name || '').toLowerCase().trim();
+      const userBatches = (req.user.assignedBatches || []).map(String);
+
+      batches = batches.filter(b => {
+        if (b.isAllAccess) return true;
+        if (userBatches.includes(String(b._id)) || userBatches.includes(b.code)) return true;
+        if ((b.assignedEmails || []).some(e => e.toLowerCase().trim() === userEmail)) return true;
+        if (b.instructor1 && b.instructor1.toLowerCase().trim() === userName) return true;
+        if (b.instructor2 && b.instructor2.toLowerCase().trim() === userName) return true;
+        if ((b.instructors || []).some(inst => inst.toLowerCase().trim() === userName || inst.toLowerCase().trim() === userEmail)) return true;
+        return false;
+      });
+    }
     
     // Enrich with dynamic metrics
     const enriched = await Promise.all(batches.map(async (b) => {
-      // Get latest progress
       const progresses = await DailyProgressDAO.find({ batchId: String(b._id) });
       let latestProgress = null;
       let maxPercentage = 0;
@@ -20,7 +36,6 @@ router.get('/', authenticateToken, async (req, res) => {
         maxPercentage = Math.max(...progresses.map(p => p.syllabusPercentage || 0));
       }
 
-      // Get latest attendance rate
       const attendances = await AttendanceDAO.find({ batchId: String(b._id) });
       let avgRate = 0;
       if (attendances.length > 0) {
@@ -36,6 +51,8 @@ router.get('/', authenticateToken, async (req, res) => {
         instructor1: b.instructor1 || 'Sarah Jenkins',
         instructor2: b.instructor2 || 'Alex Morgan',
         instructors: instructorsList.length > 0 ? instructorsList : (b.instructors || ['Sarah Jenkins', 'Alex Morgan']),
+        assignedEmails: b.assignedEmails || [],
+        isAllAccess: !!b.isAllAccess,
         latestTopic: latestProgress ? latestProgress.topic : 'Orientation & Setup',
         syllabusPercentage: maxPercentage,
         totalLecturesLogged: progresses.length,
@@ -56,6 +73,25 @@ router.get('/:id', authenticateToken, async (req, res) => {
     if (!batch) {
       return res.status(404).json({ message: 'Batch not found' });
     }
+
+    // Permission check for non-admin
+    if (req.user.role !== 'admin') {
+      const userEmail = (req.user.email || '').toLowerCase().trim();
+      const userName = (req.user.name || '').toLowerCase().trim();
+      const userBatches = (req.user.assignedBatches || []).map(String);
+
+      const hasAccess = batch.isAllAccess ||
+        userBatches.includes(String(batch._id)) ||
+        userBatches.includes(batch.code) ||
+        (batch.assignedEmails || []).some(e => e.toLowerCase().trim() === userEmail) ||
+        (batch.instructor1 && batch.instructor1.toLowerCase().trim() === userName) ||
+        (batch.instructor2 && batch.instructor2.toLowerCase().trim() === userName);
+
+      if (!hasAccess) {
+        return res.status(403).json({ message: 'You do not have access to this batch.' });
+      }
+    }
+
     res.json(batch);
   } catch (err) {
     res.status(500).json({ message: 'Failed to fetch batch', error: err.message });
@@ -73,6 +109,8 @@ router.post('/', authenticateToken, authorizeRoles('admin'), async (req, res) =>
       endDate, 
       instructor1 = 'Sarah Jenkins', 
       instructor2 = 'Alex Morgan', 
+      assignedEmails = [],
+      isAllAccess = false,
       description = '', 
       color = '#0B6E99', 
       totalStudents = 30 
@@ -82,7 +120,7 @@ router.post('/', authenticateToken, authorizeRoles('admin'), async (req, res) =>
       return res.status(400).json({ message: 'Name, code, track, start date, and end date are required.' });
     }
 
-    const existing = await BatchDAO.findOne({ code });
+    const existing = await BatchDAO.findOne({ code: code.toUpperCase() });
     if (existing) {
       return res.status(400).json({ message: 'A batch with this code already exists.' });
     }
@@ -96,6 +134,8 @@ router.post('/', authenticateToken, authorizeRoles('admin'), async (req, res) =>
       instructor1,
       instructor2,
       instructors: [instructor1, instructor2].filter(Boolean),
+      assignedEmails: Array.isArray(assignedEmails) ? assignedEmails.map(e => e.toLowerCase().trim()) : [],
+      isAllAccess: !!isAllAccess,
       description,
       color,
       totalStudents: Number(totalStudents) || 30,
@@ -108,7 +148,7 @@ router.post('/', authenticateToken, authorizeRoles('admin'), async (req, res) =>
   }
 });
 
-// PUT /api/batches/:id (Update batch details or assign instructors - Admin only)
+// PUT /api/batches/:id (Update batch or assign teammate access - Admin only)
 router.put('/:id', authenticateToken, authorizeRoles('admin'), async (req, res) => {
   try {
     const updateData = { ...req.body };
@@ -117,6 +157,9 @@ router.put('/:id', authenticateToken, authorizeRoles('admin'), async (req, res) 
         updateData.instructor1 || 'Sarah Jenkins',
         updateData.instructor2 || 'Alex Morgan'
       ].filter(Boolean);
+    }
+    if (Array.isArray(updateData.assignedEmails)) {
+      updateData.assignedEmails = updateData.assignedEmails.map(e => e.toLowerCase().trim());
     }
 
     const updated = await BatchDAO.findByIdAndUpdate(req.params.id, updateData, { new: true });

@@ -7,41 +7,29 @@ async function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
-  // Optional Demo Role Header for quick testing/switching
-  const demoRole = req.headers['x-demo-role'];
-  const demoEmail = req.headers['x-demo-email'];
-
-  if (!token && demoRole) {
-    req.user = {
-      _id: 'demo-' + demoRole,
-      name: demoRole === 'admin' ? 'Admin / Batch Lead' : (demoRole === 'senior' ? 'Senior Director' : 'Teammate / Instructor'),
-      email: demoEmail || `${demoRole}@academy.dev`,
-      role: demoRole
-    };
-    return next();
-  }
-
   if (!token) {
-    return res.status(401).json({ message: 'Authentication required. No token provided.' });
+    return res.status(401).json({ message: 'Authentication required. Please sign in.' });
   }
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     const user = await UserDAO.findById(decoded.id);
     if (!user) {
-      return res.status(401).json({ message: 'User no longer exists.' });
+      return res.status(401).json({ message: 'User session expired or user no longer exists.' });
     }
+
     req.user = {
-      _id: user._id,
+      _id: String(user._id),
       name: user.name,
-      email: user.email,
+      email: (user.email || '').toLowerCase().trim(),
       role: user.role,
+      assignedBatches: user.assignedBatches || [],
       avatar: user.avatar,
       title: user.title
     };
     next();
   } catch (err) {
-    return res.status(403).json({ message: 'Invalid or expired token.', error: err.message });
+    return res.status(403).json({ message: 'Invalid or expired session. Please sign in again.', error: err.message });
   }
 }
 

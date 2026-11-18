@@ -18,7 +18,7 @@ import {
   Info
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { batchApi, authApi } from '../api/client';
+import { batchApi, authApi, adminApi } from '../api/client';
 
 export default function AdminPanel({ batches = [], onBatchUpdated }) {
   const { isAdmin, user } = useAuth();
@@ -56,6 +56,10 @@ export default function AdminPanel({ batches = [], onBatchUpdated }) {
   const [generatedInvite, setGeneratedInvite] = useState(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [generatingInvite, setGeneratingInvite] = useState(false);
+
+  // Seed Database State
+  const [seeding, setSeeding] = useState(false);
+  const [seedResult, setSeedResult] = useState('');
 
   const loadTeam = async () => {
     try {
@@ -734,6 +738,80 @@ export default function AdminPanel({ batches = [], onBatchUpdated }) {
               })}
             </tbody>
           </table>
+        </div>
+      </div>
+      {/* Card 5: Seed Database (Admin Only) */}
+      <div className="bg-white rounded-lg border border-notion-border p-6 shadow-notion-card space-y-4">
+        <div className="flex items-center justify-between pb-2 border-b border-notion-border">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-amber-600" />
+            <h3 className="font-semibold text-sm text-notion-text">
+              🌱 Database Seed & Reset
+            </h3>
+          </div>
+          <span className="text-[10px] text-stone-500 bg-stone-100 px-2 py-0.5 rounded font-mono">
+            Super Admin Only
+          </span>
+        </div>
+        <p className="text-xs text-notion-muted">
+          Populate the database with sample batches, attendance logs, curriculum entries, and hackathons for testing.
+        </p>
+
+        {seedResult && (
+          <div className={`p-2.5 rounded text-xs ${
+            seedResult.includes('✅') || seedResult.includes('success')
+              ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+              : 'bg-red-50 border border-red-200 text-red-700'
+          }`}>
+            {seedResult}
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          <button
+            onClick={async () => {
+              try {
+                setSeeding(true);
+                setSeedResult('');
+                const res = await adminApi.seed({ cleanFirst: false });
+                setSeedResult('✅ ' + (res.message || 'Seed completed!'));
+                if (onBatchUpdated) onBatchUpdated();
+                await loadTeam();
+              } catch (err) {
+                setSeedResult('❌ ' + (err.message || 'Seed failed'));
+              } finally {
+                setSeeding(false);
+              }
+            }}
+            disabled={seeding}
+            className="px-4 py-2 rounded-md bg-stone-900 hover:bg-black text-white text-xs font-semibold transition-colors shadow-sm disabled:opacity-50 flex items-center gap-1.5"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>{seeding ? 'Seeding...' : 'Seed Sample Data'}</span>
+          </button>
+
+          <button
+            onClick={async () => {
+              if (!confirm('⚠️ This will DELETE all existing data and reseed with fresh sample data. Continue?')) return;
+              try {
+                setSeeding(true);
+                setSeedResult('');
+                const res = await adminApi.seed({ cleanFirst: true });
+                setSeedResult('✅ ' + (res.message || 'Database cleared and reseeded!'));
+                if (onBatchUpdated) onBatchUpdated();
+                await loadTeam();
+              } catch (err) {
+                setSeedResult('❌ ' + (err.message || 'Reset failed'));
+              } finally {
+                setSeeding(false);
+              }
+            }}
+            disabled={seeding}
+            className="px-4 py-2 rounded-md bg-red-50 hover:bg-red-100 text-red-700 text-xs font-semibold transition-colors border border-red-200 shadow-sm disabled:opacity-50 flex items-center gap-1.5"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Clear & Reseed</span>
+          </button>
         </div>
       </div>
     </div>

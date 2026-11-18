@@ -21,13 +21,13 @@ router.post('/register', async (req, res) => {
     }
 
     const envAdminEmail = process.env.ADMIN_EMAIL ? process.env.ADMIN_EMAIL.toLowerCase().trim() : null;
-    const adminCount = await UserDAO.countDocuments({ role: 'admin' });
 
-    let assignedRole = role || 'instructor';
-    // If the database has no admin, or this email matches ADMIN_EMAIL or MongoDB username, or user chose admin:
+    // STRICT ROLE ASSIGNMENT:
+    // Only the ADMIN_EMAIL from environment gets admin role.
+    // Everyone else defaults to 'instructor' (or invite-assigned role).
+    // Nobody can self-register as admin by passing role='admin' in the request.
+    let assignedRole = 'instructor';
     if (envAdminEmail && normalizedEmail === envAdminEmail) {
-      assignedRole = 'admin';
-    } else if (adminCount === 0 || role === 'admin' || normalizedEmail.includes('ritikrajput')) {
       assignedRole = 'admin';
     }
 
@@ -218,6 +218,63 @@ router.delete('/team/:id', authenticateToken, authorizeRoles('admin'), async (re
   }
 });
 
+// POST /api/auth/add-member (Admin directly creates a teammate account by email)
+router.post('/add-member', authenticateToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const { name, email, password = 'password123', role = 'instructor', batchId } = req.body;
+    if (!name || !email) {
+      return res.status(400).json({ message: 'Name and email are required.' });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const existingUser = await UserDAO.findOne({ email: normalizedEmail });
+    if (existingUser) {
+      return res.status(400).json({ message: 'An account with this email already exists.' });
+    }
+
+    // Never allow creating another admin via add-member
+    const safeRole = role === 'admin' ? 'instructor' : role;
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const member = await UserDAO.create({
+      name: name.trim(),
+      email: normalizedEmail,
+      password: hashedPassword,
+      role: safeRole,
+      title: safeRole === 'senior' ? 'Senior Leadership / Reviewer' : 'Lead Instructor & Mentor',
+      avatar: `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(name)}`,
+      assignedBatches: batchId ? [String(batchId)] : []
+    });
+
+    // Also add to batch's assignedEmails if batchId provided
+    if (batchId) {
+      const batch = await BatchDAO.findById(batchId);
+      if (batch) {
+        const emails = batch.assignedEmails || [];
+        if (!emails.includes(normalizedEmail)) {
+          emails.push(normalizedEmail);
+          await BatchDAO.findByIdAndUpdate(batchId, { assignedEmails: emails });
+        }
+      }
+    }
+
+    res.status(201).json({
+      message: `Access granted to ${name}!`,
+      member: {
+        _id: member._id,
+        name: member.name,
+        email: member.email,
+        role: member.role,
+        tempPassword: password
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to add member', error: err.message });
+  }
+});
+
 // POST /api/auth/invite (Create invite link)
 router.post('/invite', authenticateToken, authorizeRoles('admin'), async (req, res) => {
   try {
@@ -233,7 +290,7 @@ router.post('/invite', authenticateToken, authorizeRoles('admin'), async (req, r
       status: 'pending'
     });
 
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const clientUrl = process.env.CLIENT_URL || `${req.protocol}://${req.get('host')}`;
     const inviteUrl = `${clientUrl}/?join=${code}&email=${encodeURIComponent(email)}&role=${role}`;
 
     res.status(201).json({

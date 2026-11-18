@@ -15,7 +15,7 @@ import LoginModal from './components/LoginModal';
 import { batchApi, progressApi, attendanceApi, eventApi, reportApi } from './api/client';
 
 function MainApp() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, isAuthenticated, loading } = useAuth();
   const [currentTab, setCurrentTab] = useState('calendar');
   const [currentMonth, setCurrentMonth] = useState('2026-11');
   const [batches, setBatches] = useState([]);
@@ -47,8 +47,16 @@ function MainApp() {
     }
   }, []);
 
-  // Load Initial Batches & DB health
+  // Auto-open login modal for unauthenticated users (unless join modal is open)
+  useEffect(() => {
+    if (!loading && !isAuthenticated && !joinModalData) {
+      setIsLoginModalOpen(true);
+    }
+  }, [loading, isAuthenticated, joinModalData]);
+
+  // Load Initial Batches & DB health (only when authenticated)
   const refreshBatches = async () => {
+    if (!isAuthenticated) return;
     try {
       const batchList = await batchApi.getAll();
       setBatches(batchList);
@@ -63,12 +71,14 @@ function MainApp() {
   };
 
   useEffect(() => {
-    refreshBatches();
-  }, []);
+    if (isAuthenticated) {
+      refreshBatches();
+    }
+  }, [isAuthenticated]);
 
   // Reload calendar data whenever selected batch or month changes
   const reloadCalendarData = async () => {
-    if (!selectedBatchId) return;
+    if (!selectedBatchId || !isAuthenticated) return;
     try {
       const logs = await progressApi.getLogs(selectedBatchId, currentMonth);
       setProgressLogs(logs || []);
@@ -85,8 +95,10 @@ function MainApp() {
   };
 
   useEffect(() => {
-    reloadCalendarData();
-  }, [selectedBatchId, currentMonth]);
+    if (isAuthenticated) {
+      reloadCalendarData();
+    }
+  }, [selectedBatchId, currentMonth, isAuthenticated]);
 
   const handleOpenDailyLog = (dateStr) => {
     setSelectedDateForLog(dateStr);
@@ -105,6 +117,20 @@ function MainApp() {
   };
 
   const selectedBatch = batches.find(b => String(b._id) === String(selectedBatchId));
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-notion-bg">
+        <div className="text-center space-y-3">
+          <div className="w-10 h-10 mx-auto rounded-lg bg-stone-900 text-white flex items-center justify-center font-bold text-lg animate-pulse">
+            B
+          </div>
+          <p className="text-sm text-stone-500">Loading BatchProgress...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-notion-bg text-notion-text font-sans">
@@ -127,85 +153,114 @@ function MainApp() {
           currentTab={currentTab}
           onOpenReportModal={() => setIsReportModalOpen(true)}
           onOpenDailyLogModal={handleOpenDailyLog}
+          onOpenLoginModal={() => setIsLoginModalOpen(true)}
         />
 
-        <MonthEndBanner
-          currentMonth={currentMonth}
-          onOpenReportModal={() => setIsReportModalOpen(true)}
-        />
+        {isAuthenticated && (
+          <MonthEndBanner
+            currentMonth={currentMonth}
+            onOpenReportModal={() => setIsReportModalOpen(true)}
+          />
+        )}
 
         <main className="p-6 max-w-7xl w-full mx-auto space-y-6">
-          {currentTab === 'calendar' && (
-            <CalendarView
-              currentMonth={currentMonth}
-              progressLogs={progressLogs}
-              attendanceLogs={attendanceLogs}
-              events={events}
-              selectedBatch={selectedBatch}
-              onOpenDailyLog={handleOpenDailyLog}
-              onOpenAttendance={handleOpenAttendanceFromDate}
-              onOpenEventDetail={handleOpenEventDetail}
-            />
-          )}
-
-          {currentTab === 'batches' && (
-            <BatchesManager
-              batches={batches}
-              selectedBatchId={selectedBatchId}
-              setSelectedBatchId={setSelectedBatchId}
-              onBatchCreated={refreshBatches}
-              setCurrentTab={setCurrentTab}
-            />
-          )}
-
-          {currentTab === 'attendance' && (
-            <AttendanceTracker
-              batches={batches}
-              selectedBatchId={selectedBatchId}
-              setSelectedBatchId={setSelectedBatchId}
-              initialDate={selectedDateForLog}
-              onAttendanceUpdated={reloadCalendarData}
-            />
-          )}
-
-          {currentTab === 'events' && (
-            <EventsHackathons
-              events={events}
-              batches={batches}
-              selectedBatchId={selectedBatchId}
-              onEventCreated={reloadCalendarData}
-              onEventUpdated={reloadCalendarData}
-            />
-          )}
-
-          {/* Admin Panel (Accessible only when logged in as Admin) */}
-          {currentTab === 'admin' && (
-            <AdminPanel
-              batches={batches}
-              onBatchUpdated={refreshBatches}
-            />
-          )}
-
-          {currentTab === 'reports' && (
-            <div className="bg-white p-8 rounded-lg border border-notion-border shadow-notion-card text-center space-y-4">
-              <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center mx-auto text-xl font-bold">
-                📄
+          {/* Not authenticated — show welcome screen */}
+          {!isAuthenticated && (
+            <div className="bg-white p-12 rounded-xl border border-notion-border text-center max-w-lg mx-auto space-y-4 shadow-notion-card">
+              <div className="w-16 h-16 rounded-full bg-stone-100 text-stone-600 flex items-center justify-center mx-auto text-2xl font-bold">
+                🔒
               </div>
-              <div>
-                <h2 className="text-base font-bold text-notion-text">
-                  Monthly PDF Report Station
-                </h2>
-                <p className="text-xs text-notion-muted max-w-md mx-auto mt-1">
-                  Generate official month-end reports formatted with curriculum logs, daily attendance counts, and hackathons.
-                </p>
-              </div>
+              <h2 className="text-lg font-bold text-stone-900">
+                Sign In Required
+              </h2>
+              <p className="text-xs text-stone-500 max-w-sm mx-auto leading-relaxed">
+                Please sign in with your email and password to access the batch progress calendar, attendance tracking, events, and monthly reports.
+              </p>
               <button
-                onClick={() => setIsReportModalOpen(true)}
-                className="px-4 py-2 rounded-md bg-stone-900 hover:bg-black text-white text-xs font-semibold shadow-sm transition-colors"
+                onClick={() => setIsLoginModalOpen(true)}
+                className="px-6 py-2.5 rounded-md bg-stone-900 hover:bg-black text-white text-xs font-semibold shadow-sm transition-colors"
               >
-                Open Report Studio & Download PDF
+                Sign In / Sign Up
               </button>
             </div>
+          )}
+
+          {/* Authenticated content */}
+          {isAuthenticated && (
+            <>
+              {currentTab === 'calendar' && (
+                <CalendarView
+                  currentMonth={currentMonth}
+                  progressLogs={progressLogs}
+                  attendanceLogs={attendanceLogs}
+                  events={events}
+                  selectedBatch={selectedBatch}
+                  onOpenDailyLog={handleOpenDailyLog}
+                  onOpenAttendance={handleOpenAttendanceFromDate}
+                  onOpenEventDetail={handleOpenEventDetail}
+                />
+              )}
+
+              {currentTab === 'batches' && (
+                <BatchesManager
+                  batches={batches}
+                  selectedBatchId={selectedBatchId}
+                  setSelectedBatchId={setSelectedBatchId}
+                  onBatchCreated={refreshBatches}
+                  setCurrentTab={setCurrentTab}
+                />
+              )}
+
+              {currentTab === 'attendance' && (
+                <AttendanceTracker
+                  batches={batches}
+                  selectedBatchId={selectedBatchId}
+                  setSelectedBatchId={setSelectedBatchId}
+                  initialDate={selectedDateForLog}
+                  onAttendanceUpdated={reloadCalendarData}
+                />
+              )}
+
+              {currentTab === 'events' && (
+                <EventsHackathons
+                  events={events}
+                  batches={batches}
+                  selectedBatchId={selectedBatchId}
+                  onEventCreated={reloadCalendarData}
+                  onEventUpdated={reloadCalendarData}
+                />
+              )}
+
+              {/* Admin Panel (Accessible only when logged in as Admin) */}
+              {currentTab === 'admin' && isAdmin && (
+                <AdminPanel
+                  batches={batches}
+                  onBatchUpdated={refreshBatches}
+                />
+              )}
+
+              {currentTab === 'reports' && (
+                <div className="bg-white p-8 rounded-lg border border-notion-border shadow-notion-card text-center space-y-4">
+                  <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center mx-auto text-xl font-bold">
+                    📄
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-notion-text">
+                      Monthly PDF Report Station
+                    </h2>
+                    <p className="text-xs text-notion-muted max-w-md mx-auto mt-1">
+                      Generate official month-end reports formatted with curriculum logs, daily attendance counts, and hackathons.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setIsReportModalOpen(true)}
+                    className="px-4 py-2 rounded-md bg-stone-900 hover:bg-black text-white text-xs font-semibold shadow-sm transition-colors"
+                  >
+                    Open Report Studio & Download PDF
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </main>
       </div>
