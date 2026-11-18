@@ -168,6 +168,62 @@ router.get('/me', authenticateToken, async (req, res) => {
   res.json({ user: req.user });
 });
 
+// PUT /api/auth/profile (Update Admin or User profile email & password)
+router.put('/profile', authenticateToken, async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    const userId = req.user._id;
+
+    // If demo account, find the real admin user in database or create one
+    let targetUser = await UserDAO.findById(userId);
+    if (!targetUser) {
+      targetUser = await UserDAO.findOne({ role: 'admin' });
+    }
+
+    if (!targetUser) {
+      return res.status(404).json({ message: 'User record not found.' });
+    }
+
+    const updateFields = {};
+    if (name) updateFields.name = name.trim();
+    if (email) {
+      const normalized = email.toLowerCase().trim();
+      const existing = await UserDAO.findOne({ email: normalized });
+      if (existing && String(existing._id) !== String(targetUser._id)) {
+        return res.status(400).json({ message: 'Another user already uses this email address.' });
+      }
+      updateFields.email = normalized;
+    }
+    if (password && password.trim()) {
+      const salt = await bcrypt.genSalt(10);
+      updateFields.password = await bcrypt.hash(password.trim(), salt);
+    }
+
+    const updated = await UserDAO.findByIdAndUpdate(targetUser._id, updateFields, { new: true });
+
+    const token = jwt.sign(
+      { id: updated._id, role: updated.role, email: updated.email },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      message: 'Profile updated successfully!',
+      token,
+      user: {
+        _id: updated._id,
+        name: updated.name,
+        email: updated.email,
+        role: updated.role,
+        title: updated.title,
+        avatar: updated.avatar
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to update profile', error: err.message });
+  }
+});
+
 // GET /api/auth/team (Teammates and Seniors)
 router.get('/team', authenticateToken, async (req, res) => {
   try {

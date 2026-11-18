@@ -36,6 +36,7 @@ export async function apiFetch(endpoint, options = {}) {
 export const authApi = {
   login: (email, password) => apiFetch('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   register: (payload) => apiFetch('/auth/register', { method: 'POST', body: JSON.stringify(payload) }),
+  updateProfile: (payload) => apiFetch('/auth/profile', { method: 'PUT', body: JSON.stringify(payload) }),
   addMember: (payload) => apiFetch('/auth/add-member', { method: 'POST', body: JSON.stringify(payload) }),
   removeMember: (id) => apiFetch(`/auth/team/${id}`, { method: 'DELETE' }),
   getMe: () => apiFetch('/auth/me'),

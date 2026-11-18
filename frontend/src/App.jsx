@@ -11,6 +11,7 @@ import AdminPanel from './components/AdminPanel';
 import DailyProgressModal from './components/DailyProgressModal';
 import MonthlyReportModal from './components/MonthlyReportModal';
 import JoinModal from './components/JoinModal';
+import LoginModal from './components/LoginModal';
 import { batchApi, progressApi, attendanceApi, eventApi, reportApi } from './api/client';
 
 function MainApp() {
@@ -29,6 +30,7 @@ function MainApp() {
   const [selectedDateForLog, setSelectedDateForLog] = useState('');
   const [selectedProgressForLog, setSelectedProgressForLog] = useState(null);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
   // Check URL query parameters for invite link: ?join=INV-XXXXX&email=...&role=...
   const [joinModalData, setJoinModalData] = useState(null);
@@ -111,6 +113,7 @@ function MainApp() {
         currentTab={currentTab}
         setCurrentTab={setCurrentTab}
         dbStatus={dbStatus}
+        onOpenLoginModal={() => setIsLoginModalOpen(true)}
       />
 
       {/* Main Content Pane */}
@@ -237,6 +240,12 @@ function MainApp() {
           initialRole={joinModalData.role}
         />
       )}
+
+      {/* Login with Email Modal */}
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+      />
     </div>
   );
 }

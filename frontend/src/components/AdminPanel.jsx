@@ -30,6 +30,14 @@ export default function AdminPanel({ batches = [], onBatchUpdated }) {
   const [savingBatch, setSavingBatch] = useState(false);
   const [savedBatchSuccess, setSavedBatchSuccess] = useState(false);
 
+  // Admin Self Profile State
+  const [adminName, setAdminName] = useState(user?.name || 'Super Admin');
+  const [adminEmail, setAdminEmail] = useState(user?.email || 'admin@academy.dev');
+  const [adminNewPassword, setAdminNewPassword] = useState('');
+  const [updatingProfile, setUpdatingProfile] = useState(false);
+  const [profileSuccess, setProfileSuccess] = useState(false);
+  const [profileError, setProfileError] = useState('');
+
   // Direct Email Access State
   const [directName, setDirectName] = useState('');
   const [directEmail, setDirectEmail] = useState('');
@@ -86,6 +94,31 @@ export default function AdminPanel({ batches = [], onBatchUpdated }) {
       </div>
     );
   }
+
+  // 0. Update Admin's Own Email & Password
+  const handleUpdateAdminProfile = async (e) => {
+    e.preventDefault();
+    if (!adminEmail) return;
+
+    try {
+      setUpdatingProfile(true);
+      setProfileError('');
+      const res = await authApi.updateProfile({
+        name: adminName,
+        email: adminEmail,
+        password: adminNewPassword || undefined
+      });
+      localStorage.setItem('token', res.token);
+      setProfileSuccess(true);
+      setTimeout(() => setProfileSuccess(false), 3500);
+      setAdminNewPassword('');
+      await loadTeam();
+    } catch (err) {
+      setProfileError(err.message || 'Failed to update admin profile');
+    } finally {
+      setUpdatingProfile(false);
+    }
+  };
 
   // 1. Direct Grant Access by Email
   const handleDirectAddMember = async (e) => {
@@ -222,6 +255,88 @@ export default function AdminPanel({ batches = [], onBatchUpdated }) {
             Admin Access Level
           </span>
         </div>
+      </div>
+
+      {/* Super Admin Personal Email & Credentials Settings */}
+      <div className="bg-white rounded-lg border border-notion-border p-5 shadow-notion-card space-y-3">
+        <div className="flex items-center justify-between pb-2 border-b border-notion-border">
+          <div className="flex items-center gap-2">
+            <Key className="w-4 h-4 text-amber-600" />
+            <h3 className="font-semibold text-sm text-notion-text">
+              Your Super Admin Email & Login Credentials
+            </h3>
+          </div>
+          <span className="text-[10px] text-stone-500 bg-stone-100 px-2 py-0.5 rounded font-mono">
+            Active Admin: {user?.email}
+          </span>
+        </div>
+        <p className="text-xs text-notion-muted">
+          Change this to your original personal/work email so you can log in directly from anywhere without using the demo credentials!
+        </p>
+
+        {profileError && (
+          <div className="p-2.5 rounded bg-red-50 border border-red-200 text-red-700 text-xs">
+            {profileError}
+          </div>
+        )}
+
+        {profileSuccess && (
+          <div className="p-2.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-1.5">
+            <Check className="w-4 h-4 text-emerald-600" />
+            <span>Admin profile updated! You can now log in with {adminEmail} anytime.</span>
+          </div>
+        )}
+
+        <form onSubmit={handleUpdateAdminProfile} className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs items-end">
+          <div>
+            <label className="block font-medium text-notion-text mb-1">
+              Your Name
+            </label>
+            <input
+              type="text"
+              value={adminName}
+              onChange={(e) => setAdminName(e.target.value)}
+              className="w-full text-xs px-3 py-2 rounded-md border border-notion-border focus:ring-1 focus:ring-stone-400"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block font-medium text-notion-text mb-1">
+              Your Original Email (Admin Login) <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="email"
+              value={adminEmail}
+              onChange={(e) => setAdminEmail(e.target.value)}
+              placeholder="e.g. yourname@gmail.com"
+              className="w-full text-xs px-3 py-2 rounded-md border border-notion-border focus:ring-1 focus:ring-stone-400 font-medium"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block font-medium text-notion-text mb-1">
+              New Password (Optional)
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="password"
+                value={adminNewPassword}
+                onChange={(e) => setAdminNewPassword(e.target.value)}
+                placeholder="Leave blank to keep current"
+                className="w-full text-xs px-3 py-2 rounded-md border border-notion-border focus:ring-1 focus:ring-stone-400"
+              />
+              <button
+                type="submit"
+                disabled={updatingProfile}
+                className="px-4 py-2 rounded-md bg-stone-900 hover:bg-black text-white font-semibold transition-colors flex-shrink-0 disabled:opacity-50"
+              >
+                {updatingProfile ? 'Saving...' : 'Save Email'}
+              </button>
+            </div>
+          </div>
+        </form>
       </div>
 
       {/* Two Methods to Give Access by Email */}

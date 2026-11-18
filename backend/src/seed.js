@@ -9,9 +9,32 @@ const {
 } = require('./models/dao');
 
 async function seedData(force = false) {
+  const customAdminEmail = process.env.ADMIN_EMAIL ? process.env.ADMIN_EMAIL.toLowerCase().trim() : null;
+  const customAdminPassword = process.env.ADMIN_PASSWORD || 'password123';
+  const customAdminName = process.env.ADMIN_NAME || 'Super Admin';
+
   const usersCount = await UserDAO.countDocuments();
   if (usersCount > 0 && !force) {
-    console.log('[Seed] Database already has data. Skipping seed.');
+    // If a custom admin email is provided in .env, ensure it exists with admin role
+    if (customAdminEmail) {
+      const existing = await UserDAO.findOne({ email: customAdminEmail });
+      if (!existing) {
+        const hash = await bcrypt.hash(customAdminPassword, 10);
+        await UserDAO.create({
+          name: customAdminName,
+          email: customAdminEmail,
+          password: hash,
+          role: 'admin',
+          title: 'Academy Director & Batch Operations Head',
+          avatar: `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(customAdminName)}`
+        });
+        console.log(`✅ [Seed] Registered your original email (${customAdminEmail}) as Super Admin!`);
+      } else if (existing.role !== 'admin') {
+        await UserDAO.findByIdAndUpdate(existing._id, { role: 'admin' });
+        console.log(`✅ [Seed] Promoted ${customAdminEmail} to Super Admin!`);
+      }
+    }
+    console.log('[Seed] Database ready.');
     return;
   }
 
@@ -28,17 +51,21 @@ async function seedData(force = false) {
   console.log('[Seed] Seeding sample batches (with 2 co-instructors), daily attendance counts, hackathons, and users...');
 
   // 1. Users
-  const passwordHash = await bcrypt.hash('password123', 10);
+  const targetAdminEmail = customAdminEmail || 'admin@academy.dev';
+  const targetAdminPassword = customAdminPassword;
+  const targetAdminName = customAdminName;
+  const passwordHash = await bcrypt.hash(targetAdminPassword, 10);
   
   // Super Admin (Only one with Admin Panel access)
   const adminUser = await UserDAO.create({
-    name: 'Super Admin',
-    email: 'admin@academy.dev',
+    name: targetAdminName,
+    email: targetAdminEmail,
     password: passwordHash,
     role: 'admin',
     title: 'Academy Director & Batch Operations Head',
-    avatar: 'https://api.dicebear.com/7.x/notionists/svg?seed=Admin'
+    avatar: `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(targetAdminName)}`
   });
+  console.log(`👑 [Seed] Super Admin initialized with email: ${targetAdminEmail}`);
 
   // Instructor 1 (Teammate)
   const trainer1 = await UserDAO.create({

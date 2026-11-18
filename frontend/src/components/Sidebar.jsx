@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-export default function Sidebar({ currentTab, setCurrentTab, dbStatus }) {
+export default function Sidebar({ currentTab, setCurrentTab, dbStatus, onOpenLoginModal }) {
   const { user, isAdmin, isSenior } = useAuth();
 
   const navItems = [
@@ -129,22 +129,32 @@ export default function Sidebar({ currentTab, setCurrentTab, dbStatus }) {
 
         {/* User Card */}
         {user && (
-          <div className="flex items-center justify-between p-1.5 rounded-md hover:bg-notion-hover transition-colors">
-            <div className="flex items-center gap-2">
-              <img
-                src={user.avatar || `https://api.dicebear.com/7.x/notionists/svg?seed=${user.name}`}
-                alt={user.name}
-                className="w-7 h-7 rounded-full bg-stone-200 border border-notion-border"
-              />
-              <div className="text-left overflow-hidden">
-                <div className="text-xs font-medium text-notion-text truncate leading-tight">
-                  {user.name}
-                </div>
-                <div className="text-[10px] text-notion-muted truncate capitalize">
-                  {user.role === 'admin' ? '👑 Super Admin (You)' : (user.role === 'senior' ? '👓 Senior Reviewer' : '👨‍🏫 Instructor')}
+          <div className="p-1.5 rounded-md bg-white border border-notion-border space-y-2 shadow-notion-card">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <img
+                  src={user.avatar || `https://api.dicebear.com/7.x/notionists/svg?seed=${user.name}`}
+                  alt={user.name}
+                  className="w-7 h-7 rounded-full bg-stone-200 border border-notion-border"
+                />
+                <div className="text-left overflow-hidden">
+                  <div className="text-xs font-medium text-notion-text truncate leading-tight">
+                    {user.name}
+                  </div>
+                  <div className="text-[10px] text-notion-muted truncate font-mono">
+                    {user.email}
+                  </div>
                 </div>
               </div>
             </div>
+
+            <button
+              onClick={onOpenLoginModal}
+              className="w-full py-1 rounded bg-stone-100 hover:bg-stone-200 text-stone-700 text-[11px] font-medium transition-colors border border-stone-200 flex items-center justify-center gap-1"
+              title="Sign in with your email & password"
+            >
+              <span>🔑 Sign in with Email</span>
+            </button>
           </div>
         )}
       </div>
