@@ -5,6 +5,7 @@ const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   role: { type: String, enum: ['admin', 'instructor', 'senior'], default: 'instructor' },
+  status: { type: String, enum: ['pending', 'approved'], default: 'approved' },
   avatar: { type: String, default: '' },
   title: { type: String, default: 'Team Member' },
   assignedBatches: [{ type: String }], // Array of batch IDs or codes this user can access

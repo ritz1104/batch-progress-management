@@ -55,7 +55,7 @@ export default function Header({
   const selectedBatch = batches.find(b => String(b._id) === String(selectedBatchId));
 
   return (
-    <header className="bg-white border-b border-notion-border sticky top-0 z-20 px-6 py-2.5">
+    <header className="bg-white border-b border-notion-border sticky top-0 z-20 px-3 sm:px-6 py-2.5">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         {/* Left: Breadcrumbs & Month Navigation */}
         <div className="flex items-center gap-3">

@@ -90,6 +90,31 @@ router.put('/users/:id/role', async (req, res) => {
   }
 });
 
+// PUT /api/admin/users/:id/approval (Approve or reject a pending instructor)
+router.put('/users/:id/approval', async (req, res) => {
+  try {
+    const { action } = req.body;
+    if (!['approve', 'reject'].includes(action)) {
+      return res.status(400).json({ message: 'Invalid approval action' });
+    }
+
+    if (action === 'approve') {
+      const updated = await UserDAO.findByIdAndUpdate(req.params.id, {
+        status: 'approved',
+        role: 'instructor'
+      }, { new: true });
+      if (!updated) return res.status(404).json({ message: 'User not found' });
+      return res.json({ message: `${updated.name} was approved as an instructor`, user: updated });
+    }
+
+    const removed = await UserDAO.findByIdAndDelete(req.params.id);
+    if (!removed) return res.status(404).json({ message: 'User not found' });
+    res.json({ message: `${removed.name}'s registration was rejected` });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to update approval', error: err.message });
+  }
+});
+
 // GET /api/admin/system-status (Admin system overview)
 router.get('/system-status', async (req, res) => {
   try {

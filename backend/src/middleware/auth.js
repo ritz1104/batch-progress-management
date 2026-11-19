@@ -17,6 +17,9 @@ async function authenticateToken(req, res, next) {
     if (!user) {
       return res.status(401).json({ message: 'User session expired or user no longer exists.' });
     }
+    if (user.status === 'pending') {
+      return res.status(403).json({ message: 'Your account is waiting for admin approval.' });
+    }
 
     req.user = {
       _id: String(user._id),

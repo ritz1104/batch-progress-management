@@ -13,6 +13,7 @@ import MonthlyReportModal from './components/MonthlyReportModal';
 import JoinModal from './components/JoinModal';
 import LoginModal from './components/LoginModal';
 import { batchApi, progressApi, attendanceApi, eventApi, reportApi } from './api/client';
+import { Calendar, CheckSquare, Trophy, FileText, Layers } from 'lucide-react';
 
 function MainApp() {
   const { user, isAdmin, isAuthenticated, loading } = useAuth();
@@ -163,7 +164,7 @@ function MainApp() {
           />
         )}
 
-        <main className="p-6 max-w-7xl w-full mx-auto space-y-6">
+        <main className="p-3 sm:p-4 md:p-6 pb-20 md:pb-6 max-w-7xl w-full mx-auto space-y-4 md:space-y-6">
           {/* Not authenticated — show welcome screen */}
           {!isAuthenticated && (
             <div className="bg-white p-12 rounded-xl border border-notion-border text-center max-w-lg mx-auto space-y-4 shadow-notion-card">
@@ -284,6 +285,29 @@ function MainApp() {
         month={currentMonth}
         batches={batches}
       />
+
+      {isAuthenticated && (
+        <nav className="fixed bottom-0 left-0 right-0 z-40 md:hidden grid grid-cols-5 border-t border-notion-border bg-white/95 px-1">
+          {[
+            ['calendar', 'Calendar', Calendar],
+            ['batches', 'Batches', Layers],
+            ['attendance', 'Attend', CheckSquare],
+            ['events', 'Events', Trophy],
+            ['reports', 'Reports', FileText],
+          ].map(([id, label, Icon]) => (
+            <button
+              key={id}
+              onClick={() => setCurrentTab(id)}
+              className={`flex min-h-[58px] flex-col items-center justify-center gap-1 text-[10px] ${
+                currentTab === id ? 'text-stone-900 font-semibold' : 'text-stone-500'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              <span>{label}</span>
+            </button>
+          ))}
+        </nav>
+      )}
 
       {/* 1-Click Join Invitation Acceptance Modal */}
       {joinModalData && (

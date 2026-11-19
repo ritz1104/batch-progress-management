@@ -31,13 +31,18 @@ export default function JoinModal({ isOpen, onClose, initialCode, initialEmail, 
     try {
       setLoading(true);
       setError('');
-      await register({
+      const result = await register({
         name,
         email,
         password,
         role,
         inviteCode
       });
+      if (result?.pendingApproval) {
+        setError('Registration submitted! Wait for the admin to approve your instructor access.');
+        setLoading(false);
+        return;
+      }
       onClose();
       // Clean up URL parameter
       window.history.replaceState({}, document.title, window.location.pathname);

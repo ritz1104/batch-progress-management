@@ -43,6 +43,9 @@ export function AuthProvider({ children }) {
 
   const register = async (userData) => {
     const res = await authApi.register(userData);
+    if (res.pendingApproval) {
+      return { pendingApproval: true, user: res.user };
+    }
     localStorage.setItem('token', res.token);
     setToken(res.token);
     setUser(res.user);

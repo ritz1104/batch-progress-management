@@ -27,14 +27,17 @@ router.post('/register', async (req, res) => {
     // Everyone else defaults to 'instructor' (or invite-assigned role).
     // Nobody can self-register as admin by passing role='admin' in the request.
     let assignedRole = 'instructor';
+    let assignedStatus = 'pending';
     if (envAdminEmail && normalizedEmail === envAdminEmail) {
       assignedRole = 'admin';
+      assignedStatus = 'approved';
     }
 
     if (inviteCode) {
       const invite = await InviteDAO.findOne({ code: inviteCode, status: 'pending' });
       if (invite) {
-        assignedRole = invite.role;
+        // Public registrations always wait for approval and are granted Instructor access.
+        assignedRole = 'instructor';
         await InviteDAO.updateOne({ _id: invite._id }, { status: 'accepted' });
       }
     }
@@ -51,9 +54,23 @@ router.post('/register', async (req, res) => {
       email: normalizedEmail,
       password: hashedPassword,
       role: assignedRole,
+      status: assignedStatus,
       title: title || defaultTitle,
       avatar: `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(name)}`
     });
+
+    if (assignedStatus === 'pending') {
+      return res.status(201).json({
+        message: 'Account submitted successfully. Wait for the admin to approve your instructor access.',
+        pendingApproval: true,
+        user: {
+          name: user.name,
+          email: user.email,
+          role: assignedRole,
+          status: assignedStatus
+        }
+      });
+    }
 
     const token = jwt.sign(
       { id: user._id, role: user.role, email: user.email },
@@ -98,6 +115,12 @@ router.post('/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(401).json({ message: 'Incorrect password. Please try again.' });
+    }
+    if (user.status === 'pending') {
+      return res.status(403).json({
+        message: 'Your account is waiting for admin approval.',
+        pendingApproval: true
+      });
     }
 
     const token = jwt.sign(
@@ -192,6 +215,7 @@ router.get('/team', authenticateToken, async (req, res) => {
       name: u.name,
       email: u.email,
       role: u.role,
+      status: u.status || 'approved',
       title: u.title,
       avatar: u.avatar,
       createdAt: u.createdAt
@@ -243,6 +267,7 @@ router.post('/add-member', authenticateToken, authorizeRoles('admin'), async (re
       email: normalizedEmail,
       password: hashedPassword,
       role: safeRole,
+      status: 'approved',
       title: safeRole === 'senior' ? 'Senior Leadership / Reviewer' : 'Lead Instructor & Mentor',
       avatar: `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(name)}`,
       assignedBatches: batchId ? [String(batchId)] : []

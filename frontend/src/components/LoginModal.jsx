@@ -61,12 +61,17 @@ export default function LoginModal({ isOpen, onClose }) {
     try {
       setLoading(true);
       setError('');
-      await register({ name: name.trim(), email: email.trim(), password });
-      setSuccess(true);
-      setTimeout(() => {
+      const result = await register({ name: name.trim(), email: email.trim(), password });
+      if (result?.pendingApproval) {
         setSuccess(false);
-        onClose();
-      }, 800);
+        setError('Registration submitted! Wait for the admin to approve your account and instructor role.');
+        setName('');
+        setEmail('');
+        setPassword('');
+        return;
+      }
+      setSuccess(true);
+      setTimeout(() => { setSuccess(false); onClose(); }, 800);
     } catch (err) {
       setError(err.message || 'Registration failed.');
     } finally {

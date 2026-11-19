@@ -37,7 +37,7 @@ export default function Sidebar({ currentTab, setCurrentTab, dbStatus, onOpenLog
   }
 
   return (
-    <aside className="w-64 bg-notion-sidebar border-r border-notion-border flex flex-col justify-between select-none h-screen sticky top-0">
+    <aside className="hidden md:flex w-64 bg-notion-sidebar border-r border-notion-border flex-col justify-between select-none h-screen sticky top-0 shrink-0">
       {/* Top Workspace Header */}
       <div>
         <div className="p-4 border-b border-notion-border/60">

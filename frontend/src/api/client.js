@@ -50,6 +50,7 @@ export const adminApi = {
   seed: (payload) => apiFetch('/admin/seed', { method: 'POST', body: JSON.stringify(payload || {}) }),
   assignBatch: (payload) => apiFetch('/admin/assign-batch', { method: 'POST', body: JSON.stringify(payload) }),
   updateUserRole: (id, role) => apiFetch(`/admin/users/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
+  updateUserApproval: (id, action) => apiFetch(`/admin/users/${id}/approval`, { method: 'PUT', body: JSON.stringify({ action }) }),
   systemStatus: () => apiFetch('/admin/system-status'),
 };
 

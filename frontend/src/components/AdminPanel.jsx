@@ -212,6 +212,15 @@ export default function AdminPanel({ batches = [], onBatchUpdated }) {
     }
   };
 
+  const handleApproval = async (memberId, action, memberName) => {
+    try {
+      await adminApi.updateUserApproval(memberId, action);
+      await loadTeam();
+    } catch (err) {
+      alert(`Failed to ${action} ${memberName}: ` + err.message);
+    }
+  };
+
   // Save Co-Instructor Batch Assignment
   const handleSaveCoInstructors = async (e) => {
     e.preventDefault();
@@ -723,7 +732,22 @@ export default function AdminPanel({ batches = [], onBatchUpdated }) {
                       {m.title || 'Curriculum Member'}
                     </td>
                     <td className="py-2.5 px-4 text-right">
-                      {!isSelf && (
+                      {!isSelf && m.status === 'pending' ? (
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => handleApproval(m._id, 'approve', m.name)}
+                            className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1 font-medium text-[11px] text-emerald-700 hover:bg-emerald-100"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => handleApproval(m._id, 'reject', m.name)}
+                            className="rounded border border-red-200 bg-red-50 px-2 py-1 font-medium text-[11px] text-red-700 hover:bg-red-100"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      ) : !isSelf ? (
                         <button
                           onClick={() => handleRevokeAccess(m._id, m.name)}
                           className="text-red-600 hover:text-red-800 font-medium text-[11px] hover:underline"
@@ -731,7 +755,7 @@ export default function AdminPanel({ batches = [], onBatchUpdated }) {
                         >
                           Revoke Access
                         </button>
-                      )}
+                      ) : null}
                     </td>
                   </tr>
                 );
